@@ -3,9 +3,20 @@ import pytest
 import pytz
 
 from django.utils import timezone
-
-from ayats.models import Ayat, HizbQuarter, Juz, Ruku, UserAyatState, UserHizbState
+from .tasks import update_user_states
 from users.models import User
+from ayats.models import (
+    Ayat,
+    HizbQuarter,
+    Juz,
+    Ruku,
+    UserAyatState,
+    UserHizbState,
+    UserJuzState,
+)
+from unittest.mock import MagicMock
+from django.db.models.signals import m2m_changed
+from django.db import transaction
 
 # Create your tests here.
 import logging
@@ -69,13 +80,18 @@ def test_user_states_override(bootstrap_data):
     assert UserAyatState.objects.count() == 1
 
 
-def test_user_ayat_state_weight(bootstrap_data):
-    logging.info("Make sure the weight is calculated correctly")
+@pytest.mark.django_db(transaction=True)
+def test_user_ayat_hizb_and_juz_states(bootstrap_data, mocker):
+    logging.info("Testing User Ayat, Hizb, and Juz states")
 
     user = User.objects.get(username="iman")
     default_expiry_time = user.default_expiry_time
     logging.info(f"Default expiry time for user {user} is {default_expiry_time}")
     assert default_expiry_time == 30
+
+    # Connect a mock handler to the m2m_changed signal
+    mock_handler = mocker.MagicMock()
+    m2m_changed.connect(mock_handler, sender=UserAyatState.ayat.through)
 
     expiration_date = timezone.now() + datetime.timedelta(days=16)
     surah = 1
@@ -88,14 +104,32 @@ def test_user_ayat_state_weight(bootstrap_data):
     user_state = UserAyatState.objects.create(
         user=user, expiration_date=expiration_date
     )
-    user_state.ayat.set(ayats)
-    user_state.save()
+    with transaction.atomic():
+        user_state.ayat.set(ayats)
 
-    logging.info(f"User state weight for user {user} is {user_state.weight}")
+    assert mock_handler.call_count == 2
+    m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
+
+    logging.info(f"User Ayat weight for user {user} is {user_state.weight}")
     # Not reliable to test floating point numbers for equality
     assert user_state.weight == pytest.approx(0.5, rel=1e-9)
+    assert UserAyatState.objects.count() == 1
 
-    # Create more user states to test the weight calculation
+    user_hizb_state = UserHizbState.objects.get(user=user)
+    user_hizb_state_weight = user_hizb_state.weight
+    logging.info(f"User Hizb weight for user {user} is {user_hizb_state_weight}")
+    assert UserHizbState.objects.count() == 1
+    assert user_hizb_state_weight == pytest.approx(0.5, rel=1e-9)
+
+    user_juz_state = UserJuzState.objects.get(user=user)
+    user_juz_state_weight = user_juz_state.weight
+    logging.info(f"User Juz weight for user {user} is {user_juz_state_weight}")
+    assert UserJuzState.objects.count() == 1
+    assert user_juz_state_weight == pytest.approx(0.5, rel=1e-9)
+
+    # Connect a mock handler to the m2m_changed signal
+    m2m_changed.connect(mock_handler, sender=UserAyatState.ayat.through)
+
     surah = 2
     ayat_start = 1
     ayat_end = 30
@@ -105,50 +139,81 @@ def test_user_ayat_state_weight(bootstrap_data):
     user_state_2 = UserAyatState.objects.create(
         user=user, expiration_date=expiration_date
     )
-    user_state_2.ayat.set(ayats)
-    user_state_2.save()
-    logging.info(f"User state weight for user {user} is {user_state_2.weight}")
+
+    with transaction.atomic():
+        user_state_2.ayat.set(ayats)
+
+    m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
+
+    assert mock_handler.call_count == 4
 
     assert UserAyatState.objects.count() == 2
+    assert UserHizbState.objects.count() == 2
+    assert UserJuzState.objects.count() == 1
+
+    # Connect a mock handler to the m2m_changed signal
+    m2m_changed.connect(mock_handler, sender=UserAyatState.ayat.through)
 
     surah = 2
     ayat_start = 25
-    ayat_end = 50
+    ayat_end = 124
     ayats = Ayat.objects.filter(
         surah=surah, ayat_in_surah__range=(ayat_start, ayat_end)
     )
     user_state_3 = UserAyatState.objects.create(
         user=user, expiration_date=expiration_date
     )
-    user_state_3.ayat.set(ayats)
-    user_state_3.save()
-    logging.info(f"User state weight for user {user} is {user_state_3.weight}")
+
+    with transaction.atomic():
+        user_state_3.ayat.set(ayats)
+
+    m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
+
+    assert mock_handler.call_count == 18
+    assert UserAyatState.objects.count() == 3
+    assert UserHizbState.objects.count() == 8
+    assert UserJuzState.objects.count() == 1
+
+    # Connect a mock handler to the m2m_changed signal
+    m2m_changed.connect(mock_handler, sender=UserAyatState.ayat.through)
 
     # Make a user ayat state that is not in the hizb quarter
     surah = 2
-    ayat_start = 50
-    ayat_end = 60
+    ayat_start = 142
+    ayat_end = 157
     ayats = Ayat.objects.filter(
         surah=surah, ayat_in_surah__range=(ayat_start, ayat_end)
     )
     user_state_4 = UserAyatState.objects.create(
         user=user, expiration_date=expiration_date
     )
-    user_state_4.ayat.set(ayats)
-    user_state_4.save()
+    with transaction.atomic():
+        user_state_4.ayat.set(ayats)
 
-    assert UserAyatState.objects.count() == 4
+    m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
 
-    from .tasks import update_hizb_weight_task
+    logging.info("We should have 20 calls to the signal handler")
+    assert mock_handler.call_count == 20
+    user_ayat_states = UserAyatState.objects.all()
+    for user_ayat_state in user_ayat_states:
+        logging.info(
+            f"User Ayat State {user_ayat_state} has weight {user_ayat_state.weight}"
+        )
+    logging.info(f"User Ayat State count: {user_ayat_states.count()}")
+    assert user_ayat_states.count() == 4
 
-    hizb_quarter = HizbQuarter.objects.get(id=1)
-    logging.info(f"Updating the weight for user {user} for hizb quarter {hizb_quarter}")
-    user_hizb_state, created = UserHizbState.objects.get_or_create(
-        user=user, hizb=hizb_quarter
-    )
-    assert user_hizb_state.weight == 0
+    user_hizb_states = UserHizbState.objects.all()
+    for user_hizb_state in user_hizb_states:
+        logging.info(
+            f"User Hizb State {user_hizb_state} has weight {user_hizb_state.weight}"
+        )
+    logging.info(f"User Hizb State count: {user_hizb_states.count()}")
+    assert user_hizb_states.count() == 9
 
-    update_hizb_weight_task(user.id, hizb_quarter.id)
-    user_hizb_state.refresh_from_db()
-
-    assert user_hizb_state.weight == pytest.approx(0.5, rel=1e-9)
+    user_juz_states = UserJuzState.objects.all()
+    for user_juz_state in user_juz_states:
+        logging.info(
+            f"User Juz State {user_juz_state} has weight {user_juz_state.weight}"
+        )
+    logging.info(f"User Juz State count: {user_juz_states.count()}")
+    assert user_juz_states.count() == 2

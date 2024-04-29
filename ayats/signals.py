@@ -1,9 +1,16 @@
+from django.db import transaction
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 from .models import UserAyatState
+from .tasks import update_user_states
 
 
 @receiver(m2m_changed, sender=UserAyatState.ayat.through)
 def update_user_ayat_state(sender, instance, action, **kwargs):
     if action == "post_add":
-        instance.update_overlapping_user_states()
+
+        with transaction.atomic():
+
+            instance.update_overlapping_user_states()
+
+            transaction.on_commit(lambda: update_user_states(instance.id))

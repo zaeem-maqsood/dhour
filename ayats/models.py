@@ -11,7 +11,7 @@ class Ayat(models.Model):
     ayat_in_surah = models.IntegerField()
 
     def __str__(self):
-        return f"{self.surah} : {self.number}"
+        return f"{self.surah} : {self.ayat_in_surah}"
 
     class Meta:
         verbose_name = "Ayat"
@@ -141,6 +141,25 @@ class UserJuzState(models.Model):
         ]
 
 
+def calculate_juz_weight(user, juz):
+    # Get all the hizb quarters associated with the given juz
+    hizb_quarters_in_juz = juz.hizbquarter_set.all()
+
+    # Get all UserHizbState objects for the specified user
+    user_hizb_states = UserHizbState.objects.filter(user=user)
+
+    # Find UserHizbState objects with overlapping hizb quarters
+    user_hizb_states = user_hizb_states.filter(hizb__in=hizb_quarters_in_juz)
+
+    # Aggregate the total weight of these UserHizbState objects
+    aggregated_weight = user_hizb_states.aggregate(total_weight=Avg("weight"))
+
+    # Extract the total weight (or default to 0 if None)
+    total_weight = aggregated_weight["total_weight"] or 0
+
+    return total_weight
+
+
 class Section(models.Model):
     ayat = models.ManyToManyField(Ayat)
 
@@ -160,11 +179,11 @@ class Ruku(Section):
 
 
 class HizbQuarter(Section):
-    juz = models.IntegerField()
+    juz = models.ForeignKey("Juz", on_delete=models.CASCADE)
     number = models.IntegerField()
 
     def __str__(self):
-        return f"{self.juz} : {self.number}"
+        return f"Hizb: {self.number} | Juz: {self.juz} : "
 
     class Meta:
         verbose_name = "Hizb Quarter"

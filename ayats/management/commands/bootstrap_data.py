@@ -99,9 +99,10 @@ def seed_hizb_quarters():
         data = json.load(file)
 
     for item in data["hizbQuarters"]:
+        juz = Juz.objects.get(number=item["juz"])
         # Create a HizbQuarter instance for the current item
         hizb_quarter_instance = HizbQuarter.objects.create(
-            juz=item["juz"], number=item["number"]
+            juz=juz, number=item["number"]
         )
 
         # Fetch the Ayat instances based on their IDs provided in the JSON
@@ -145,8 +146,8 @@ class Command(BaseCommand):
         create_superusers()
         seed_ayats()
         seed_rukus()
-        seed_hizb_quarters()
         seed_juzs()
+        seed_hizb_quarters()
         self.stdout.write(self.style.SUCCESS("Data seeding complete"))
 
         return "done"
