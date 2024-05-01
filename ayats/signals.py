@@ -4,9 +4,15 @@ from django.dispatch import receiver
 from .models import UserAyatState
 from .tasks import update_user_states
 
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
 
 @receiver(m2m_changed, sender=UserAyatState.ayat.through)
 def update_user_ayat_state(sender, instance, action, **kwargs):
+    logging.info("update_user_ayat_state signal fired")
+
     if action == "post_add":
 
         with transaction.atomic():

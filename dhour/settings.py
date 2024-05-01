@@ -11,10 +11,23 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+import requests
+from dotenv import load_dotenv, find_dotenv
+import logging
+
+# Set up logging
+LOGGER = logging.getLogger(__name__)
+
+# Load environment definition file
+ENV_FILE = find_dotenv()
+if ENV_FILE:
+    load_dotenv(ENV_FILE)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+TEMPLATE_DIR = BASE_DIR / "templates"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
@@ -29,6 +42,7 @@ ALLOWED_HOSTS = []
 
 AUTH_USER_MODEL = "users.User"
 
+AUTHENTICATION_BACKENDS = ("dhour.backend.PermissionBackend",)
 
 # Application definition
 
@@ -39,6 +53,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "mozilla_django_oidc",
+    "rest_framework",
     "ayats",
     "users",
 ]
@@ -51,6 +67,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mozilla_django_oidc.middleware.SessionRefresh",
 ]
 
 ROOT_URLCONF = "dhour.urls"
@@ -58,7 +75,7 @@ ROOT_URLCONF = "dhour.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [TEMPLATE_DIR],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -125,3 +142,51 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "mozilla_django_oidc.contrib.drf.OIDCAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+}
+
+
+def discover_oidc(discovery_url: str) -> dict:
+    """
+    Performs OpenID Connect discovery to retrieve the provider configuration.
+    """
+    response = requests.get(discovery_url)
+    logging.info(f"OpenID Connect discovery response: {response.json()}")
+    if response.status_code != 200:
+        raise ValueError("Failed to retrieve provider configuration.")
+
+    provider_config = response.json()
+
+    # Extract endpoint URLs from provider configuration
+    return {
+        "authorization_endpoint": provider_config["authorization_endpoint"],
+        "token_endpoint": provider_config["token_endpoint"],
+        "userinfo_endpoint": provider_config["userinfo_endpoint"],
+        "jwks_uri": provider_config["jwks_uri"],
+    }
+
+
+# OpenID Connect settings
+OIDC_RP_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID")
+OIDC_RP_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET")
+OIDC_OP_BASE_URL = os.environ.get("AUTH0_DOMAIN")
+
+OIDC_RP_SIGN_ALGO = "RS256"
+OIDC_RP_SCOPES = "openid profile email"
+OIDC_OP_DISCOVERY_ENDPOINT = OIDC_OP_BASE_URL + "/.well-known/openid-configuration"
+
+# Discover OpenID Connect endpoints
+discovery_info = discover_oidc(OIDC_OP_DISCOVERY_ENDPOINT)
+OIDC_OP_AUTHORIZATION_ENDPOINT = discovery_info["authorization_endpoint"]
+OIDC_OP_TOKEN_ENDPOINT = discovery_info["token_endpoint"]
+OIDC_OP_USER_ENDPOINT = discovery_info["userinfo_endpoint"]
+OIDC_OP_JWKS_ENDPOINT = discovery_info["jwks_uri"]
+
+LOGIN_REDIRECT_URL = "http://127.0.0.1:8000/admin"
+LOGOUT_REDIRECT_URL = "http://127.0.0.1:8000/admin"
+LOGIN_URL = "http://127.0.0.1:8000/oidc/authenticate/"

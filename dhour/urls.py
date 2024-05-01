@@ -13,9 +13,21 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.views.generic.base import RedirectView
+
+
+# Redirect to the admin view
+class RedirectToAdminView(RedirectView):
+    # Set the URL to redirect to
+    url = "/admin/"
+
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("", RedirectToAdminView.as_view(), name="redirect-to-admin"),
+    path("api/", include("ayats.urls")),
+    path("oidc/", include("mozilla_django_oidc.urls")),
+    path("admin/", admin.site.urls),
 ]
