@@ -5,52 +5,6 @@ from django.contrib.auth import get_user_model
 import os
 
 
-def create_superusers():
-    user = get_user_model()  # Get the custom user model
-
-    super_users = [
-        {
-            "username": "zaeem",
-            "email": "zaeem.maqsood@gmail.com",
-            "password": "zaeempassword",
-        }
-    ]
-    users = [
-        {"username": "iman", "email": "iman@gmail.com", "password": "imanpassword"},
-        {
-            "username": "hidayah",
-            "email": "hidayah@gmail.com",
-            "password": "hidayahpassword",
-        },
-        {
-            "username": "younas",
-            "email": "younas@gmail.com",
-            "password": "younaspassword",
-        },
-    ]
-
-    # Create the first superuser if they don't already exist
-    for super_user in super_users:
-        if not user.objects.filter(username=super_user["username"]).exists():
-            user.objects.create_superuser(
-                super_user["username"], super_user["email"], super_user["password"]
-            )
-            print(f"Superuser '{super_user['username']}' created successfully.")
-        else:
-            print(f"Superuser '{super_user['username']}' already exists.")
-
-    for standard_user in users:
-        if not user.objects.filter(username=standard_user["username"]).exists():
-            user.objects.create_user(
-                standard_user["username"],
-                standard_user["email"],
-                standard_user["password"],
-            )
-            print(f"User '{standard_user['username']}' created successfully.")
-        else:
-            print(f"User '{standard_user['username']}' already exists.")
-
-
 def seed_ayats():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     json_file_dir = os.path.join(current_dir, "..", "..", "bootstrap_data")
@@ -143,7 +97,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
-        create_superusers()
         seed_ayats()
         seed_rukus()
         seed_juzs()

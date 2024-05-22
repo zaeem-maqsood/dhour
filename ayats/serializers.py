@@ -1,15 +1,23 @@
 from rest_framework import serializers
 from .models import (
+    Ayat,
     UserAyatState,
     UserHizbState,
     UserJuzState,
 )
 
 
+class AyatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ayat
+        fields = "__all__"
+
+
 class UserAyatStateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserAyatState
-        fields = "__all__"
+        exclude = ["user"]
+        depth = 1
 
 
 class UserHizbStateSerializer(serializers.ModelSerializer):
