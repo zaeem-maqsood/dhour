@@ -1,7 +1,10 @@
+import logging
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import Avg
+
+logger = logging.getLogger("custom_logger")
 
 
 # Create your models here.
@@ -35,10 +38,18 @@ class UserAyatState(models.Model):
     # !! USED IN A SIGNAL !!
     # See dhour/ayats/signals.py
     # We need to update the overlapping user states when we save a new user state
+    # This will prevent multiple ayat from being related to multiple user states
+    # Only used when adding/updating a new user state
     def update_overlapping_user_states(self):
-        overlapping_user_states = UserAyatState.objects.filter(
-            user=self.user, ayat__in=self.ayat.all()
-        ).exclude(pk=self.pk)
+        logger.info(
+            f"------ Update Overlapping User Ayat States | UserAyatState ID:{self.id} ------"
+        )
+        overlapping_user_states = (
+            UserAyatState.objects.filter(user=self.user, ayat__in=self.ayat.all())
+            .exclude(pk=self.pk)
+            .distinct()
+        )
+        print("overlapping_user_states", overlapping_user_states)
         for user_state in overlapping_user_states:
             print("user_state", user_state.id)
             user_state.ayat.remove(*self.ayat.all())
@@ -103,6 +114,8 @@ class UserHizbState(models.Model):
 
 
 def calculate_hizb_weight(user, hizb_quarter):
+    logger.info(f"Calculating Hizb Weight for User: {user} | Hizb: {hizb_quarter}")
+
     # Get all the ayat associated with the given hizb_quarter
     ayat_in_hizb = hizb_quarter.ayat.all()
 
@@ -113,6 +126,8 @@ def calculate_hizb_weight(user, hizb_quarter):
     overlapping_user_ayat_states = user_ayat_states.filter(
         ayat__in=ayat_in_hizb
     ).distinct()
+
+    logger.info(f"Overlapping User Ayat States: {overlapping_user_ayat_states}")
 
     # Aggregate the total weight of these UserAyatState objects
     aggregated_weight = overlapping_user_ayat_states.aggregate(

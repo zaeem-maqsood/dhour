@@ -26,7 +26,12 @@ class UserHizbStateSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class UserJuzStateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserJuzState
-        fields = "__all__"
+class UserJuzStateSerializer(serializers.Serializer):
+    juz_number = serializers.IntegerField()
+    weight = serializers.SerializerMethodField()
+
+    def get_weight(self, obj):
+        weight = obj["weight"]
+        if weight != "n/a":
+            weight = round(float(weight), 2)
+        return weight

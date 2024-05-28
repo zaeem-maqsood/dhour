@@ -1,53 +1,42 @@
-from django.contrib.auth import get_user_model
-
+import logging
 from .models import (
     UserAyatState,
     UserHizbState,
     HizbQuarter,
     UserJuzState,
     Juz,
+    Ayat,
     calculate_hizb_weight,
     calculate_juz_weight,
 )
-
-import logging
-
-LOGGER = logging.getLogger(__name__)
+from users.models import User
 
 
-def update_user_states(user_ayat_state_id):
-    """
-    Update the UserHizbState and UserJuzState objects based on the UserAyatState object with the given ID.
-    """
+logger = logging.getLogger("custom_logger")
 
-    logging.info(
-        f"update_user_states task fired for UserAyatState with id {user_ayat_state_id}"
-    )
 
-    # Retrieve the UserAyatState object based on the given ID
-    try:
-        user_ayat_state = UserAyatState.objects.get(pk=user_ayat_state_id)
-    except UserAyatState.DoesNotExist:
-        raise ValueError(f"UserAyatState with id {user_ayat_state_id} does not exist.")
+def update_hizb_and_juz_states(user_id, ayats):
 
-    user = user_ayat_state.user
-    ayats = user_ayat_state.ayat.all()
-
+    user = User.objects.get(pk=user_id)
     # Pre-fetch the related HizbQuarters and Juz based on the ayats
-    hizb_quarters = HizbQuarter.objects.filter(ayat__in=ayats)
-    juz_list = Juz.objects.filter(ayat__in=ayats)
+    hizb_quarters_query = HizbQuarter.objects.filter(ayat__in=ayats).distinct()
+    hizb_quarters = list(hizb_quarters_query)  # Force evaluation of the queryset
+    juz_query = Juz.objects.filter(ayat__in=ayats).distinct()
+    juz_list = list(juz_query)  # Force evaluation of the queryset
 
-    # Update UserHizbState without looping over ayats
+    print(hizb_quarters)
+    # Update UserHizbStates
     hizb_states = []
     for hizb_quarter in hizb_quarters:
         user_hizb_state, _ = UserHizbState.objects.get_or_create(
             user=user, hizb=hizb_quarter
         )
+        print(user_hizb_state)
         user_hizb_state.weight = calculate_hizb_weight(user, hizb_quarter)
         user_hizb_state.save()
         hizb_states.append(user_hizb_state)
 
-    # Update UserJuzState without looping over ayats
+    # Update UserJuzState
     juz_states = []
     for juz in juz_list:
         user_juz_state, _ = UserJuzState.objects.get_or_create(user=user, juz=juz)
@@ -56,3 +45,21 @@ def update_user_states(user_ayat_state_id):
         juz_states.append(user_juz_state)
 
     return {"hizb_states": hizb_states, "juz_states": juz_states}
+
+
+def cleanup_user_states():
+    """
+    Clean up UserHizbState and UserJuzState objects potentially orphaned after a UserAyatState deletion.
+    This function checks for any HizbQuarter or Juz that no longer have associated Ayat linked through any UserAyatState,
+    and deletes or updates the corresponding state objects accordingly.
+    """
+    logger.info("----- Cleanup User States ------")
+
+    user_ayat_states = UserAyatState.objects.filter(weight=0)
+    user_ayat_states.delete()
+
+    user_hizb_states = UserHizbState.objects.filter(weight=0)
+    user_hizb_states.delete()
+
+    user_juz_states = UserJuzState.objects.filter(weight=0)
+    user_juz_states.delete()

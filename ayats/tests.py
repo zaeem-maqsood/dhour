@@ -3,7 +3,6 @@ import pytest
 import pytz
 
 from django.utils import timezone
-from .tasks import update_user_states
 from users.models import User
 from ayats.models import (
     Ayat,
@@ -37,6 +36,15 @@ def test_make_sure_records_exist(bootstrap_data):
 # and if another user state is created with overlapping ayats
 # the overlapping user states are updated correctly
 def test_user_states_override(bootstrap_data):
+
+    # Create user
+    user = User.objects.create(
+        email="zaeem.maqsood@gmail.com",
+        is_active=True,
+        is_staff=True,
+        is_superuser=True,
+    )
+
     logging.info("Get the first 7 ayat of Surah Fatiha")
     surah = 1
     ayat_start = 1
@@ -50,7 +58,7 @@ def test_user_states_override(bootstrap_data):
         "Create a user and assign the first 7 ayat of Surah Fatiha to the user"
     )
     expiration_date = timezone.now() + datetime.timedelta(days=16)
-    user = User.objects.get(username="iman")
+    user = User.objects.get(email="zaeem.maqsood@gmail.com")
     user_state_ayats = UserAyatState.objects.create(
         user=user, expiration_date=expiration_date
     )
@@ -84,7 +92,15 @@ def test_user_states_override(bootstrap_data):
 def test_user_ayat_hizb_and_juz_states(bootstrap_data, mocker):
     logging.info("Testing User Ayat, Hizb, and Juz states")
 
-    user = User.objects.get(username="iman")
+    # Create user
+    user = User.objects.create(
+        email="zaeem.maqsood@gmail.com",
+        is_active=True,
+        is_staff=True,
+        is_superuser=True,
+    )
+
+    user = User.objects.get(email="zaeem.maqsood@gmail.com")
     default_expiry_time = user.default_expiry_time
     logging.info(f"Default expiry time for user {user} is {default_expiry_time}")
     assert default_expiry_time == 30
@@ -169,7 +185,7 @@ def test_user_ayat_hizb_and_juz_states(bootstrap_data, mocker):
 
     m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
 
-    assert mock_handler.call_count == 18
+    assert mock_handler.call_count == 8
     assert UserAyatState.objects.count() == 3
     assert UserHizbState.objects.count() == 8
     assert UserJuzState.objects.count() == 1
@@ -193,7 +209,7 @@ def test_user_ayat_hizb_and_juz_states(bootstrap_data, mocker):
     m2m_changed.disconnect(mock_handler, sender=UserAyatState.ayat.through)
 
     logging.info("We should have 20 calls to the signal handler")
-    assert mock_handler.call_count == 20
+    assert mock_handler.call_count == 10
     user_ayat_states = UserAyatState.objects.all()
     for user_ayat_state in user_ayat_states:
         logging.info(

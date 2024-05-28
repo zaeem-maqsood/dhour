@@ -190,3 +190,40 @@ OIDC_OP_JWKS_ENDPOINT = discovery_info["jwks_uri"]
 LOGIN_REDIRECT_URL = "http://127.0.0.1:8000/admin"
 LOGOUT_REDIRECT_URL = "http://127.0.0.1:8000/admin"
 LOGIN_URL = "http://127.0.0.1:8000/oidc/authenticate/"
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s"
+        },
+        "simple": {"format": "%(levelname)s %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",  # Set higher level to suppress default Django logging
+            "propagate": False,  # Prevent the logs from propagating to the root logger
+        },
+        "custom_logger": {  # Define your custom logger
+            "handlers": ["console"],
+            "level": "INFO",  # Set to DEBUG to capture all logs from this logger
+            "propagate": False,  # This will prevent the logs from being handled by parent loggers
+        },
+    },
+}
+
+
+# if DEBUG:
+#     # make all loggers use the console.
+#     for logger in LOGGING["loggers"]:
+#         LOGGING["loggers"][logger]["handlers"] = ["console"]
