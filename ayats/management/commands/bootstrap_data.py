@@ -1,7 +1,6 @@
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 import json
 from ...models import Ayat, Ruku, HizbQuarter, Juz
-from django.contrib.auth import get_user_model
 import os
 
 

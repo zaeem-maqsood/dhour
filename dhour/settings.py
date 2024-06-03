@@ -53,13 +53,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Third-party apps
     "mozilla_django_oidc",
+    "corsheaders",
     "rest_framework",
+    # Local apps
     "ayats",
     "users",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -149,6 +153,15 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
 }
+
+
+CORS_ALLOW_ALL_ORIGINS = False  # Set to False for security reasons
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # The URL of your Nuxt.js frontend
+]
+
+# Optionally, you can use CORS_ALLOW_CREDENTIALS to allow cookies to be included in cross-origin requests
+CORS_ALLOW_CREDENTIALS = True
 
 
 def discover_oidc(discovery_url: str) -> dict:
